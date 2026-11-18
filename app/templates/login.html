@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · RELAY</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="gate">
+  <div class="gate-card">
+    <div class="brand">
+      <span class="mark"></span>
+      <div>
+        <strong>RELAY</strong>
+        <p>控制台登录 · v{{ version }}</p>
+      </div>
+    </div>
+    <h1>先登录再改密钥</h1>
+    <form id="login-form">
+      <label>
+        账号
+        <input id="username" name="username" autocomplete="username" required>
+      </label>
+      <label>
+        密码
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <div class="form-row">
+        <button type="submit">进入控制台</button>
+        <p id="login-msg" class="hint"></p>
+      </div>
+    </form>
+  </div>
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const msg = document.getElementById("login-msg");
+      msg.className = "hint";
+      msg.textContent = "正在登录…";
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: document.getElementById("username").value.trim(),
+          password: document.getElementById("password").value,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        msg.className = "hint bad";
+        msg.textContent = data.detail || "登录失败";
+        return;
+      }
+      window.location.href = data.redirect || "/";
+    });
+  </script>
+</body>
+</html>

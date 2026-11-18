@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>修改账号 · RELAY</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="gate">
+  <div class="gate-card">
+    <div class="brand">
+      <span class="mark"></span>
+      <div>
+        <strong>RELAY</strong>
+        <p>{% if must_change %}首次登录强制改密{% else %}修改控制台账号{% endif %} · v{{ version }}</p>
+      </div>
+    </div>
+    <h1>{% if must_change %}换掉初始账号{% else %}更新登录信息{% endif %}</h1>
+    {% if must_change %}
+    <div class="notice">
+      当前仍是初始账号 <code>{{ username }}</code>。必须同时更换账号和密码后，才能进入控制台。
+    </div>
+    {% endif %}
+    <form id="account-form">
+      <label>
+        当前密码
+        <input id="current-password" name="current_password" type="password" autocomplete="current-password" required>
+      </label>
+      <label>
+        新账号
+        <input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" required>
+      </label>
+      <label>
+        新密码
+        <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <label>
+        确认新密码
+        <input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required>
+      </label>
+      <div class="form-row">
+        <button type="submit">保存并进入</button>
+        <a class="ghost" href="/logout">退出</a>
+        <p id="account-msg" class="hint">账号 3-32 位，密码至少 8 位。</p>
+      </div>
+    </form>
+  </div>
+  <script>
+    document.getElementById("account-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const msg = document.getElementById("account-msg");
+      msg.className = "hint";
+      msg.textContent = "正在保存…";
+      const res = await fetch("/api/account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_password: document.getElementById("current-password").value,
+          username: document.getElementById("username").value.trim(),
+          password: document.getElementById("password").value,
+          confirm_password: document.getElementById("confirm-password").value,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        msg.className = "hint bad";
+        msg.textContent = data.detail || "保存失败";
+        return;
+      }
+      window.location.href = data.redirect || "/";
+    });
+  </script>
+</body>
+</html>

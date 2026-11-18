@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RELAY · QQ 官方机器人</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="frame">
+    <header class="top">
+      <div class="brand">
+        <span class="mark"></span>
+        <div>
+          <strong>RELAY</strong>
+          <p>QQ Official Bot · Webhook</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="pill {% if configured %}on{% endif %}">
+          {% if configured %}凭证已加载{% else %}等待配置 AppID / AppSecret{% endif %}
+        </div>
+        <span class="who">{{ username }}</span>
+        <a class="ghost" href="/account">改账号</a>
+        <a class="ghost" href="/logout">退出</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>用 HTTPS 回调接收 QQ 事件</h1>
+      <p>服务已按官方 API v2 实现 Ed25519 验签、op=13 地址校验、群聊 / 单聊 / 频道被动回复。</p>
+    </section>
+
+    <section class="panel keys">
+      <h2>机器人密钥</h2>
+      <form id="cred-form">
+        <label>
+          AppID
+          <input id="app-id" name="app_id" value="{{ app_id_value }}" maxlength="64" autocomplete="off" required>
+        </label>
+        <label>
+          AppSecret
+          <input id="app-secret" name="app_secret" type="password" maxlength="256" autocomplete="new-password" placeholder="{% if configured %}已保存，留空则保持不变{% else %}从开放平台「开发管理」复制{% endif %}">
+        </label>
+        <div class="form-row">
+          <button type="submit">保存并立即生效</button>
+          <p id="cred-msg" class="hint">密钥写入服务器 <code>.env</code>，页面不会回显 Secret。</p>
+        </div>
+      </form>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>接入清单</h2>
+        <ol class="steps">
+          <li>打开 <a href="https://q.qq.com" target="_blank" rel="noreferrer">QQ 开放平台</a> 创建机器人，复制 AppID 与 AppSecret。</li>
+          <li>在本页填入 AppID / AppSecret 并保存。</li>
+          <li>用 80 / 443 / 8080 / 8443 之一对外提供 HTTPS，回调填：</li>
+        </ol>
+        <div class="urlbox">
+          <code id="callback-path">https://你的域名{{ webhook_path }}</code>
+          <button type="button" data-copy="https://你的域名{{ webhook_path }}">复制路径</button>
+        </div>
+        <p class="hint">当前监听 <code>{{ webhook_path }}</code> · API <code>{{ api_base }}</code> · AppID {{ app_id }}</p>
+      </article>
+
+      <article class="panel">
+        <h2>运行数据</h2>
+        <div class="stats">
+          <div><span id="stat-received">{{ stats.received }}</span><label>收到事件</label></div>
+          <div><span id="stat-validated">{{ stats.validated }}</span><label>地址校验</label></div>
+          <div><span id="stat-replied">{{ stats.replied }}</span><label>已回复</label></div>
+          <div><span id="stat-errors">{{ stats.errors }}</span><label>失败</label></div>
+        </div>
+        <p class="hint">进程运行 <span id="uptime">{{ uptime_seconds }}</span> 秒 · v{{ version }}</p>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>签到数据 · <span id="ck-day">{{ checkin.day }}</span></h2>
+      <div class="stats">
+        <div><span id="ck-today">{{ checkin.today_count }}</span><label>今日签到</label></div>
+        <div><span id="ck-users">{{ checkin.user_count }}</span><label>签到人数</label></div>
+        <div><span id="ck-times">{{ checkin.checkin_count }}</span><label>累计次数</label></div>
+        <div><span id="ck-points">{{ checkin.points_sum }}</span><label>钱包</label></div>
+        <div><span id="ck-bank">{{ checkin.bank_sum }}</span><label>银行</label></div>
+      </div>
+      <div class="boards">
+        <div>
+          <h3>今日排名</h3>
+          <table class="board">
+            <thead>
+              <tr><th>#</th><th>用户</th><th>今日</th><th>连续</th><th>钱包</th></tr>
+            </thead>
+            <tbody id="today-board">
+              {% for row in checkin.today %}
+              <tr>
+                <td>{{ row.rank }}</td>
+                <td>{{ row.nickname }}</td>
+                <td>+{{ row.gained }}</td>
+                <td>{{ row.streak }}</td>
+                <td>{{ row.points }}</td>
+              </tr>
+              {% else %}
+              <tr class="empty"><td colspan="5">今天还没有人签到</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>软妹币榜</h3>
+          <table class="board">
+            <thead>
+              <tr><th>#</th><th>用户</th><th>连续</th><th>次数</th><th>钱包</th><th>银行</th><th></th></tr>
+            </thead>
+            <tbody id="point-board">
+              {% for row in checkin.leaderboard %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ row.nickname }}</td>
+                <td><input class="mini" type="number" min="0" step="1" value="{{ row.streak }}" data-field="streak"></td>
+                <td>{{ row.total }}</td>
+                <td><input class="mini" type="number" min="0" step="1" value="{{ row.points }}" data-field="points"></td>
+                <td><input class="mini" type="number" min="0" step="1" value="{{ row.bank }}" data-field="bank"></td>
+                <td><button type="button" class="mini-save" data-user="{{ row.user_id }}">保存</button></td>
+              </tr>
+              {% else %}
+              <tr class="empty"><td colspan="7">还没有签到记录</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="hint" id="ck-edit-msg">可改连续天数、钱包和银行，保存后立即生效。银行里的软妹币不会被打劫。</p>
+        </div>
+      </div>
+      <h3>打劫记录 · 今日 <span id="rob-today">{{ checkin.rob_today }}</span> 次 / 得手 <span id="rob-win">{{ checkin.rob_wins }}</span></h3>
+      <table class="board">
+        <thead>
+          <tr><th>时间</th><th>打劫</th><th>对象</th><th>结果</th><th>软妹币</th></tr>
+        </thead>
+        <tbody id="rob-board">
+          {% for row in checkin.robs %}
+          <tr>
+            <td>{{ row.time }}</td>
+            <td>{{ row.attacker }}</td>
+            <td>{{ row.victim }}</td>
+            <td class="{% if row.success %}win{% else %}lose{% endif %}">{% if row.success %}得手{% else %}失手{% endif %}</td>
+            <td class="{% if row.success %}win{% else %}lose{% endif %}">{% if row.success %}+{{ row.stolen }}{% elif row.lost %}-{{ row.lost }}{% else %}0{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr class="empty"><td colspan="5">还没有打劫记录</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <h3>银行管理 · 今日 <span id="bank-today">{{ checkin.bank_today }}</span> 笔</h3>
+      <table class="board">
+        <thead>
+          <tr><th>时间</th><th>用户</th><th>操作</th><th>数额</th><th>钱包</th><th>银行</th></tr>
+        </thead>
+        <tbody id="bank-board">
+          {% for row in checkin.banks %}
+          <tr>
+            <td>{{ row.time }}</td>
+            <td>{{ row.user }}</td>
+            <td>{% if row.action == "deposit" %}存款{% elif row.action == "withdraw" %}取款{% elif row.action == "interest" %}利息{% else %}调整{% endif %}</td>
+            <td>{% if row.action == "deposit" %}+{{ row.amount }}{% elif row.action == "withdraw" %}-{{ row.amount }}{% elif row.amount >= 0 %}+{{ row.amount }}{% else %}{{ row.amount }}{% endif %}</td>
+            <td>{{ row.points }}</td>
+            <td>{{ row.bank }}</td>
+          </tr>
+          {% else %}
+          <tr class="empty"><td colspan="6">还没有银行流水</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel log-panel">
+      <div class="log-head">
+        <h2>事件磁带</h2>
+        <span class="live">LIVE</span>
+      </div>
+      <div id="event-log" class="log">
+        {% for item in events %}
+        <div class="row {% if not item.ok %}bad{% endif %}">
+          <time>{{ item.time }}</time>
+          <b>{{ item.kind }}</b>
+          <span>{{ item.summary }}</span>
+        </div>
+        {% else %}
+        <div class="row muted" id="empty-row">还没有收到平台回调。保存开放平台回调地址后，校验请求会显示在这里。</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>默认指令</h2>
+      <div class="cmds">
+        <code>help</code>
+        <code>签到</code>
+        <code>搬砖</code>
+        <code>领工资</code>
+        <code>查询</code>
+        <code>加软妹币</code>
+        <code>减软妹币</code>
+        <code>加天数</code>
+        <code>减天数</code>
+        <code>打劫</code>
+        <code>存款</code>
+        <code>取款</code>
+        <code>银行</code>
+        <code>利息</code>
+      </div>
+      <p class="hint">群聊直接发指令即可，前面加 / 也可以。未开全量消息时需要 @机器人。</p>
+    </section>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
