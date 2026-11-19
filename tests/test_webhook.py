@@ -18,12 +18,6 @@ def test_health_and_dashboard(authed_client):
     assert status.status_code == 200
     assert "today_count" in status.json()["checkin"]
     assert "robs" in status.json()["checkin"]
-    assert "secret_len" in status.json()
-
-
-def test_preview_probe_is_public(client):
-    response = client.get("/.well-known/mcai-preview-connect-status-detect", follow_redirects=False)
-    assert response.status_code == 404
 
 
 def test_validation_requires_credentials(client, monkeypatch):
@@ -46,7 +40,6 @@ def test_url_validation(client, monkeypatch):
     assert data["plain_token"] == "Arq0D5A61EgUu4OxUvOp"
     assert data["signature"] == validation_signature(secret, "1725442341", "Arq0D5A61EgUu4OxUvOp")
     assert list(data.keys()) == ["plain_token", "signature"]
-    assert response.headers.get("x-qqbot-protocol") == "url-validation"
 
 
 def test_url_validation_trailing_slash_and_string_op(client, monkeypatch):
@@ -154,15 +147,3 @@ def test_web_edit_checkin(authed_client, monkeypatch, tmp_path):
     profile = get_profile("user-aaaa", path)
     assert profile.bank == 12
     assert profile.points == 88
-
-
-def test_credentials_check(authed_client, monkeypatch):
-    async def fake_probe(settings):
-        return {"token_ok": True, "token_error": ""}
-
-    monkeypatch.setattr("app.main.probe_access_token", fake_probe)
-    response = authed_client.post("/api/credentials/check")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["token_ok"] is True
-    assert "secret_len" in body

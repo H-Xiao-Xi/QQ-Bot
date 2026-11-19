@@ -1,4 +1,4 @@
-from app.handlers import parse_incoming, reply_for_message
+from app.handlers import KNOWN_COMMANDS, parse_incoming, reply_for_message
 
 
 def test_group_at_message_strips_mention():
@@ -6,7 +6,7 @@ def test_group_at_message_strips_mention():
         "GROUP_AT_MESSAGE_CREATE",
         {
             "id": "msg-1",
-            "content": "<@!123456> /help",
+            "content": "<@!123456> /帮助",
             "group_openid": "group-1",
             "author": {"member_openid": "user-1"},
         },
@@ -14,13 +14,18 @@ def test_group_at_message_strips_mention():
     )
     assert message is not None
     assert message.scene == "group"
-    assert message.content == "/help"
+    assert message.content == "/帮助"
     help_reply = reply_for_message(message)
     assert help_reply is not None
     assert "签到" in help_reply.text
     assert "查询" in help_reply.text
     assert "打劫" in help_reply.text
     assert "/ping" not in help_reply.text
+
+
+def test_help_command_is_chinese():
+    assert "帮助" in KNOWN_COMMANDS
+    assert "help" not in KNOWN_COMMANDS
 
 
 def test_group_at_plain_nickname_prefix(monkeypatch, tmp_path):
@@ -111,7 +116,7 @@ def test_group_full_message_commands_only(monkeypatch, tmp_path):
         "GROUP_MESSAGE_CREATE",
         {
             "id": "msg-bot",
-            "content": "/help",
+            "content": "/帮助",
             "group_openid": "group-1",
             "author": {"member_openid": "bot-1", "bot": True},
         },
@@ -124,7 +129,7 @@ def test_group_full_message_commands_only(monkeypatch, tmp_path):
         "GROUP_MESSAGE_CREATE",
         {
             "id": "msg-help-bare",
-            "content": "help",
+            "content": "帮助",
             "group_openid": "group-1",
             "author": {"member_openid": "user-2"},
         },

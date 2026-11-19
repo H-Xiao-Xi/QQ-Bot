@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,7 +13,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
-from app.api_client import QQBotAPI, probe_access_token
+from app.api_client import QQBotAPI
 from app.auth import (
     authenticate,
     ensure_admin,
@@ -25,7 +24,6 @@ from app.auth import (
 from app.checkin import set_score, summarize_checkins
 from app.config import apply_credentials, get_settings
 from app.handlers import dispatch_event, notify_brick_jobs
-from app.proxy import start_tcp_proxy
 from app.store import store
 from app.webhook import (
     OP_DISPATCH,
@@ -95,18 +93,6 @@ async def lifespan(_: FastAPI):
     api_client = QQBotAPI(settings)
     logger.info("QQ bot webhook ready, path=%s configured=%s", settings.webhook_path, settings.configured)
     watcher = asyncio.create_task(_brick_loop())
-    proxy_server = None
-    if settings.proxy_port:
-        target_host = "127.0.0.1" if settings.host in ("0.0.0.0", "::") else settings.host
-        try:
-            proxy_server = await start_tcp_proxy(
-                settings.proxy_host,
-                settings.proxy_port,
-                target_host,
-                settings.port,
-            )
-        except OSError:
-            logger.exception("reverse proxy bind failed on %s:%s", settings.proxy_host, settings.proxy_port)
     try:
         yield
     finally:
@@ -115,9 +101,6 @@ async def lifespan(_: FastAPI):
             await watcher
         except asyncio.CancelledError:
             pass
-        if proxy_server is not None:
-            proxy_server.close()
-            await proxy_server.wait_closed()
         await api_client.aclose()
 
 
@@ -138,8 +121,6 @@ def _is_public_path(path: str) -> bool:
     if path.rstrip("/") == webhook:
         return True
     if path.startswith("/static/"):
-        return True
-    if path.startswith("/.well-known/"):
         return True
     return path in PUBLIC_PATHS
 
@@ -200,10 +181,7 @@ async def dashboard(request: Request) -> HTMLResponse:
             "configured": settings.configured,
             "app_id": settings.masked_app_id,
             "app_id_value": settings.qq_bot_app_id,
-            "secret_len": settings.secret_len,
-            "secret_suffix": settings.secret_suffix,
             "webhook_path": settings.webhook_path,
-            "api_base": settings.qq_bot_api_base,
             "version": __version__,
             "stats": snapshot["stats"],
             "events": snapshot["events"],
@@ -298,8 +276,6 @@ async def status() -> dict:
         "configured": settings.configured,
         "app_id": settings.masked_app_id,
         "secret_configured": bool(settings.qq_bot_app_secret),
-        "secret_len": settings.secret_len,
-        "secret_suffix": settings.secret_suffix,
         "webhook_path": settings.webhook_path,
         "api_base": settings.qq_bot_api_base,
         "version": __version__,
@@ -348,21 +324,6 @@ async def save_credentials(body: CredentialIn) -> dict:
         "configured": settings.configured,
         "app_id": settings.masked_app_id,
         "secret_configured": bool(settings.qq_bot_app_secret),
-        "secret_len": settings.secret_len,
-        "secret_suffix": settings.secret_suffix,
-    }
-
-
-@app.post("/api/credentials/check")
-async def check_credentials() -> dict:
-    probe = await probe_access_token(settings)
-    return {
-        "ok": True,
-        "configured": settings.configured,
-        "app_id": settings.masked_app_id,
-        "secret_len": settings.secret_len,
-        "secret_suffix": settings.secret_suffix,
-        **probe,
     }
 
 

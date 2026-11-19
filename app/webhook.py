@@ -92,15 +92,8 @@ def handle_validation(secret: str, payload: dict[str, Any]) -> Response:
     except (BadSignatureError, ValueError) as exc:
         logger.exception("local validation signature failed")
         raise HTTPException(status_code=500, detail="validation signature failed") from exc
-    logger.info(
-        "webhook url validation secret_len=%s event_ts=%s token_len=%s sig_prefix=%s",
-        len(secret),
-        event_ts,
-        len(plain_token),
-        signature[:16],
-    )
+    logger.info("webhook url validation ok")
     response = json_response({"plain_token": plain_token, "signature": signature})
-    response.headers["X-QQBot-Protocol"] = "url-validation"
     return response
 
 

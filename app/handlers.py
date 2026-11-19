@@ -56,7 +56,7 @@ class Reply:
 
 HELP_TEXT = (
     "可用指令：\n"
-    "help  查看帮助\n"
+    "帮助  查看指令\n"
     "签到  每日签到，前 3 名和连续天数额外加软妹币\n"
     "搬砖  开始搬砖，2~5 分钟后提醒领工资，不限次数\n"
     "领工资  领取搬砖工资，随机 10~25 软妹币\n"
@@ -75,7 +75,7 @@ HELP_TEXT = (
 
 HELP_MARKDOWN = (
     "# RELAY 指令\n"
-    "- `help` 查看帮助\n"
+    "- `帮助` 查看指令\n"
     "- `签到` 每日签到，前 3 名和连续天数额外加软妹币\n"
     "- `搬砖` 开始搬砖，2~5 分钟后提醒领工资，不限次数\n"
     "- `领工资` 领取搬砖工资，随机 10~25 软妹币\n"
@@ -93,7 +93,7 @@ HELP_MARKDOWN = (
 )
 
 
-HELP_ALIASES = {"help", "帮助"}
+HELP_ALIASES = {"帮助"}
 CHECKIN_ALIASES = {"签到", "checkin", "qd"}
 QUERY_ALIASES = {"查询", "query", "积分", "jf", "软妹币"}
 POINT_ADD_ALIASES = {"加积分", "加分", "加软妹币", "加币"}
@@ -404,7 +404,7 @@ def reply_for_message(message: IncomingMessage) -> Reply | None:
         return None
     if message.content:
         return as_card("收到", message.content)
-    return as_card("在的", "发送 help 查看指令")
+    return as_card("在的", "发送 帮助 查看指令")
 
 
 async def send_reply(api: QQBotAPI, message: IncomingMessage, reply: Reply, msg_seq: int = 1) -> None:

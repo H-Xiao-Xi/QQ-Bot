@@ -1,7 +1,3 @@
-import os
-
-os.environ["PROXY_PORT"] = "0"
-
 import pytest
 from fastapi.testclient import TestClient
 

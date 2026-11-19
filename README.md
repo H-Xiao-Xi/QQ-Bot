@@ -5,44 +5,34 @@ Python FastAPI 服务，按 [QQ 机器人 API v2](https://bot.q.qq.com/wiki/deve
 1. Ed25519 签名校验
 2. `op=13` 回调地址验证
 3. `op=0` 事件接收后立即 `op=12` ACK
-4. 群聊 @、单聊、频道消息被动回复
+4. 群聊、单聊、频道被动回复
 
 ## 准备
 
 1. 在 [QQ 开放平台](https://q.qq.com) 创建机器人，拿到 `AppID`、`AppSecret`
-2. 沙箱里加入测试群 / 测试好友
-3. 准备可公网访问的 HTTPS 域名。平台只接受端口 `80`、`443`、`8080`、`8443`
+2. 准备可公网访问的 HTTPS 域名。平台只接受端口 `80`、`443`、`8080`、`8443`
 
 ## 启动
 
 ```bash
 python3 -m pip install --break-system-packages -r requirements.txt
 cp .env.example .env
-```
-
-```bash
 python3 app.py
 ```
 
-程序本机监听 QQ 开放平台允许的 `8080`、`8443`。本预览环境对外用 `10002` 反代到 `http://127.0.0.1:8080`，控制台 `http://127.0.0.1:10002`。先登录，再在「机器人密钥」里填写 AppID、AppSecret 并保存，立刻生效。
+程序监听 `8080`、`8443`。打开控制台登录（初始账号 `admin`，初始密码 `admin`），第一次必须改成自己的账号密码，再填写 AppID、AppSecret。
 
-开放平台回调必须用 `80` / `443` / `8080` / `8443` 之一，并且是 HTTPS。`10002` 只给本环境预览，不能填进开放平台。
-
-控制台需要登录。初始账号 `admin`，初始密码 `admin`。第一次登录后必须立刻改成你自己的账号和密码，改完才能看密钥页。账号哈希保存在 `data/admin.json`，不要提交到 Git。
-
-`/webhook` 仍然公开，QQ 开放平台回调不需要登录。
-
-健康检查：`GET /health`
+`/webhook` 对开放平台公开，不需要登录。健康检查：`GET /health`
 
 ## 开放平台回调
 
-把回调地址填成：
+回调地址填：
 
 ```text
-https://qqbot.anzixi.cn/webhook
+https://你的域名/webhook
 ```
 
-保存时平台会 POST `op=13`。服务按官方 Ed25519 算法用 AppSecret 签名 `event_ts + plain_token`，原样返回：
+保存时平台 POST `op=13`。服务用 AppSecret 按官方算法签名 `event_ts + plain_token`，返回：
 
 ```json
 {"plain_token":"...","signature":"..."}
@@ -50,16 +40,7 @@ https://qqbot.anzixi.cn/webhook
 
 事件推送验 `X-Signature-Ed25519` / `X-Signature-Timestamp`，立刻回 `{"op":12}`。
 
-宝塔 Nginx 必须：
-
-1. HTTPS 完整证书链，端口只用 `80` / `443` / `8080` / `8443`
-2. 反代到 `http://127.0.0.1:8080`，透传 `X-Signature-Ed25519`、`X-Signature-Timestamp`、`X-Bot-Appid`
-3. 关闭 HTTP/3 / QUIC（`Alt-Svc` 会导致开放平台校验失败）
-4. 网页里保存的 AppSecret 和开放平台完全一致
-
-开放平台提示「签名校验不通过」、但回调已 200 时：到控制台核对 Secret 长度和末四位，点「检测密钥」。能换到 access_token 说明密钥本身对，再从同一机器人重新复制 AppSecret 保存后重试回调。
-
-参考配置：当前工作区 `/deploy/nginx-qqbot.conf`
+Nginx 反代到 `http://127.0.0.1:8080`，透传上述三个请求头，关闭 HTTP/3 / QUIC。参考 `deploy/nginx-qqbot.conf`。
 
 建议订阅：
 
@@ -68,15 +49,11 @@ https://qqbot.anzixi.cn/webhook
 3. `C2C_MESSAGE_CREATE` 单聊
 4. `AT_MESSAGE_CREATE` 频道 @
 
-免 @ 还需要群主在手机 QQ 群设置里，把机器人消息范围设为获取群内全部消息。全量群消息只响应指令，闲聊不回。
-
-调用 OpenAPI 时，把服务器公网 IP 加进管理端白名单。
-
-回调通了但群里发指令没回复时：看控制台「已收到」有没有增加。没增加就是没订事件，或还没 @ 机器人。有增加时，事件磁带会写出 OpenAPI 错误；常见是 `11298` IP 不在白名单。Markdown 发不出时会自动改发纯文本。
+免 @ 需要群主把机器人消息范围设为获取群内全部消息。全量群消息只响应指令。调用 OpenAPI 前把服务器公网 IP 加进管理端白名单。
 
 ## 默认指令
 
-1. `help` 帮助
+1. `帮助` 查看指令
 2. `签到` 每日签到，基础 10；当日第 1/2/3 名额外 +20/+10/+5，连续天数额外 +1/天（最多 +20）
 3. `搬砖` 开始搬砖，耗时 120~300 秒随机，到点提醒领取；不限次数，同时只能搬一趟
 4. `领工资` 领取搬砖工资，随机 10~25 软妹币进入钱包
@@ -89,73 +66,24 @@ https://qqbot.anzixi.cn/webhook
 
 群聊、单聊都可以不带 `/` 直接发指令，带 `/` 同样有效。
 
-控制台软妹币榜可直接改连续天数、钱包和银行。银行管理页显示存取流水。
-
-@ 机器人或单聊里的其它文本回复一张「收到」卡片。群聊和单聊优先发 Markdown 卡片，失败时再发纯文本。业务逻辑在 `app/handlers.py`。
-
 ## 测试
 
 ```bash
 python3 -m pytest -q
 ```
 
-`tests/test_crypto.py` 使用官方文档里的校验样例。
-
-## 反向代理示例
-
-程序跑在本机 `8080` / `8443`。QQ 回调走下面这些端口（HTTPS），反代到 `http://127.0.0.1:8080`：
-
-```nginx
-server {
-    listen 443 ssl;
-    listen 8080 ssl;
-    listen 8443 ssl;
-    server_name bot.example.com;
-    ssl_certificate     /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Signature-Ed25519 $http_x_signature_ed25519;
-        proxy_set_header X-Signature-Timestamp $http_x_signature_timestamp;
-        proxy_set_header X-Bot-Appid $http_x_bot_appid;
-    }
-}
-```
-
-证书必须是完整链。部分免费证书缺 CA 时，开放平台校验会失败。
-
 ## 宝塔 Python 项目
 
-把整个项目目录上传到服务器，例如 `/www/wwwroot/qqbot`。启动后打开网站首页，先用 `admin` / `admin` 登录并改掉账号密码，再填写 AppID、AppSecret。
+1. 项目路径：例如 `/www/wwwroot/qqbot`
+2. 启动文件：`app.py`
+3. 端口：`8080`（同时监听 `8443`）
+4. 安装 `requirements.txt` 后启动
+5. 网站反代到 `http://127.0.0.1:8080`，监听 `443` / `8080` / `8443`
 
-Python 项目管理器里这样填：
-
-1. 项目路径：`/www/wwwroot/qqbot`
-2. 启动方式 / 启动文件：`app.py`
-3. 端口：`8080`（同时会监听 `8443`）
-4. 在「模块」里安装 `requirements.txt`
-5. 启动项目
-
-也可以用 Gunicorn（同样端口，单进程，避免内存事件去重失效）：
+也可以：
 
 ```bash
 gunicorn -c gunicorn.conf.py app.main:app
-```
-
-网站这边：
-
-1. 添加站点，域名解析到这台机器
-2. 申请 SSL（完整证书链）
-3. 反向代理目标：`http://127.0.0.1:8080`；站点/反代监听设为 `443` 或 `8080` 或 `8443`（QQ 只认 `80` / `443` / `8080` / `8443`）
-4. 在 Nginx 配置里补上上面三个 `X-Signature-*` / `X-Bot-Appid` 请求头，否则验签会失败
-
-开放平台回调填：
-
-```text
-https://你的域名/webhook
 ```
 
 ## 目录
@@ -163,7 +91,7 @@ https://你的域名/webhook
 ```text
 app/
   main.py         Webhook、登录与控制台
-  auth.py         控制台账号
+  webhook.py      官方回调协议
   crypto.py       Ed25519
   api_client.py   Access Token 与发消息
   handlers.py     指令与事件分发

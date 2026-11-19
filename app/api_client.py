@@ -147,24 +147,3 @@ class QQBotAPI:
             f"/v2/users/{user_openid}/messages",
             message_body(msg_type=2, msg_id=msg_id, msg_seq=msg_seq, event_id=event_id, markdown=content),
         )
-
-
-async def probe_access_token(settings: Settings) -> dict[str, Any]:
-    if not settings.configured:
-        return {"token_ok": False, "token_error": "未配置 AppID / AppSecret"}
-    url = f"{settings.qq_bot_api_base.rstrip('/')}/app/getAppAccessToken"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                url,
-                json={"appId": settings.qq_bot_app_id, "clientSecret": settings.qq_bot_app_secret},
-            )
-            data = response.json() if response.content else {}
-    except Exception as exc:
-        logger.warning("probe access token failed: %s", exc)
-        return {"token_ok": False, "token_error": str(exc)[:200]}
-    if response.status_code >= 400 or ("code" in data and not data.get("access_token")):
-        return {"token_ok": False, "token_error": str(data)[:200] or f"HTTP {response.status_code}"}
-    if data.get("access_token"):
-        return {"token_ok": True, "token_error": ""}
-    return {"token_ok": False, "token_error": str(data)[:200] or "missing access_token"}

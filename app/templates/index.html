@@ -27,8 +27,8 @@
     </header>
 
     <section class="hero">
-      <h1>用 HTTPS 回调接收 QQ 事件</h1>
-      <p>服务已按官方 API v2 实现 Ed25519 验签、op=13 地址校验、群聊 / 单聊 / 频道被动回复。</p>
+      <h1>QQ 官方机器人</h1>
+      <p>按 API v2 Webhook 验签、地址校验，并被动回复群聊 / 单聊 / 频道消息。</p>
     </section>
 
     <section class="panel keys">
@@ -44,10 +44,8 @@
         </label>
         <div class="form-row">
           <button type="submit">保存并立即生效</button>
-          <button type="button" id="cred-check">检测密钥</button>
-          <p id="cred-msg" class="hint">密钥写入服务器 <code>.env</code>，页面不会回显 Secret。</p>
+          <p id="cred-msg" class="hint">密钥写入服务器 <code>.env</code>，页面不回显 Secret。</p>
         </div>
-        <p class="hint">当前 Secret 长度 <code id="secret-len">{{ secret_len }}</code>，末四位 <code id="secret-suffix">{{ secret_suffix or "未配置" }}</code>。开放平台返回「签名校验不通过」时，从同一机器人重新复制 AppSecret 保存后再保存回调。</p>
       </form>
     </section>
 
@@ -57,13 +55,9 @@
         <ol class="steps">
           <li>打开 <a href="https://q.qq.com" target="_blank" rel="noreferrer">QQ 开放平台</a> 创建机器人，复制 AppID 与 AppSecret。</li>
           <li>在本页填入 AppID / AppSecret 并保存。</li>
-          <li>用 80 / 443 / 8080 / 8443 之一对外提供 HTTPS，回调填：</li>
+          <li>开放平台回调填 <code>https://你的域名/webhook</code>，端口只用 80 / 443 / 8080 / 8443。</li>
         </ol>
-        <div class="urlbox">
-          <code id="callback-path">https://qqbot.anzixi.cn{{ webhook_path }}</code>
-          <button type="button" data-copy="https://qqbot.anzixi.cn{{ webhook_path }}">复制路径</button>
-        </div>
-        <p class="hint">开放平台回调填这一条 HTTPS 地址。当前监听 <code>{{ webhook_path }}</code> · API <code>{{ api_base }}</code> · AppID {{ app_id }}</p>
+        <p class="hint">当前路径 <code>{{ webhook_path }}</code> · AppID {{ app_id }}</p>
       </article>
 
       <article class="panel">
@@ -188,7 +182,7 @@
           <span>{{ item.summary }}</span>
         </div>
         {% else %}
-        <div class="row muted" id="empty-row">还没有收到平台回调。保存开放平台回调地址后，校验请求会显示在这里。</div>
+        <div class="row muted" id="empty-row">还没有收到平台事件。</div>
         {% endfor %}
       </div>
     </section>
@@ -196,7 +190,7 @@
     <section class="panel">
       <h2>默认指令</h2>
       <div class="cmds">
-        <code>help</code>
+        <code>帮助</code>
         <code>签到</code>
         <code>搬砖</code>
         <code>领工资</code>

@@ -26,8 +26,6 @@ class Settings(BaseSettings):
     qq_bot_api_base: str = "https://api.bot.qq.com"
     host: str = "127.0.0.1"
     port: int = 8080
-    proxy_host: str = "0.0.0.0"
-    proxy_port: int = 10002
     log_level: str = "INFO"
 
     @field_validator("qq_bot_app_id", "qq_bot_app_secret", "qq_bot_webhook_path", mode="before")
@@ -63,19 +61,6 @@ class Settings(BaseSettings):
         if len(app_id) <= 6:
             return app_id or "(未配置)"
         return f"{app_id[:3]}****{app_id[-3:]}"
-
-    @property
-    def secret_len(self) -> int:
-        return len(self.qq_bot_app_secret)
-
-    @property
-    def secret_suffix(self) -> str:
-        secret = self.qq_bot_app_secret
-        if not secret:
-            return ""
-        if len(secret) <= 4:
-            return "*" * len(secret)
-        return f"****{secret[-4:]}"
 
 
 @lru_cache
