@@ -26,6 +26,7 @@ from app.checkin import set_score, summarize_checkins
 from app.config import apply_credentials, get_settings
 from app.crypto import validation_signature, verify_callback_signature
 from app.handlers import dispatch_event, notify_brick_jobs
+from app.proxy import start_tcp_proxy
 from app.store import store
 
 settings = get_settings()
@@ -89,6 +90,18 @@ async def lifespan(_: FastAPI):
     api_client = QQBotAPI(settings)
     logger.info("QQ bot webhook ready, path=%s configured=%s", settings.webhook_path, settings.configured)
     watcher = asyncio.create_task(_brick_loop())
+    proxy_server = None
+    if settings.proxy_port:
+        target_host = "127.0.0.1" if settings.host in ("0.0.0.0", "::") else settings.host
+        try:
+            proxy_server = await start_tcp_proxy(
+                settings.proxy_host,
+                settings.proxy_port,
+                target_host,
+                settings.port,
+            )
+        except OSError:
+            logger.exception("reverse proxy bind failed on %s:%s", settings.proxy_host, settings.proxy_port)
     try:
         yield
     finally:
@@ -97,6 +110,9 @@ async def lifespan(_: FastAPI):
             await watcher
         except asyncio.CancelledError:
             pass
+        if proxy_server is not None:
+            proxy_server.close()
+            await proxy_server.wait_closed()
         await api_client.aclose()
 
 

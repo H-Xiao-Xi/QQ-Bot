@@ -18,21 +18,15 @@ class Settings(BaseSettings):
     qq_bot_app_secret: str = ""
     qq_bot_webhook_path: str = "/webhook"
     qq_bot_api_base: str = "https://api.bot.qq.com"
-    host: str = "0.0.0.0"
-    port: int = 8888
+    host: str = "127.0.0.1"
+    port: int = 8080
+    proxy_host: str = "0.0.0.0"
+    proxy_port: int = 10002
     log_level: str = "INFO"
 
     @property
     def configured(self) -> bool:
         return bool(self.qq_bot_app_id and self.qq_bot_app_secret)
-
-    @property
-    def listen_ports(self) -> list[int]:
-        ports: list[int] = []
-        for port in (self.port, 8888, 8080):
-            if port not in ports:
-                ports.append(port)
-        return ports
 
     @property
     def webhook_path(self) -> str:

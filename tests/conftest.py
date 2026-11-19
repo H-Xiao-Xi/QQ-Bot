@@ -1,5 +1,13 @@
+import os
+
+os.environ["PROXY_PORT"] = "0"
+
 import pytest
 from fastapi.testclient import TestClient
+
+from app.config import get_settings
+
+get_settings.cache_clear()
 
 from app import auth
 from app.main import app

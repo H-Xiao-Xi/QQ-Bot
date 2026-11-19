@@ -24,7 +24,7 @@ cp .env.example .env
 python3 app.py
 ```
 
-程序监听 `8888`（控制台 `http://127.0.0.1:8888`），同时兼容 `8080`。先登录，再在「机器人密钥」里填写 AppID、AppSecret 并保存，立刻生效。
+程序监听本机 `8080`，并在 `10002` 反代到 `http://127.0.0.1:8080`。控制台 `http://127.0.0.1:10002`。先登录，再在「机器人密钥」里填写 AppID、AppSecret 并保存，立刻生效。
 
 控制台需要登录。初始账号 `admin`，初始密码 `admin`。第一次登录后必须立刻改成你自己的账号和密码，改完才能看密钥页。账号哈希保存在 `data/admin.json`，不要提交到 Git。
 
@@ -82,17 +82,15 @@ python3 -m pytest -q
 
 ## 反向代理示例
 
-程序跑在 8888。对外用 8080 或 443 反代进来：
+程序跑在本机 8080，对外端口是 10002（进程内反代到 8080）。宝塔或 Nginx 也可以自己做 10002 -> 8080：
 
 ```nginx
 server {
-    listen 443 ssl;
+    listen 10002;
     server_name bot.example.com;
-    ssl_certificate     /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
 
-    location /webhook {
-        proxy_pass http://127.0.0.1:8888;
+    location / {
+        proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Signature-Ed25519 $http_x_signature_ed25519;
@@ -112,7 +110,7 @@ Python 项目管理器里这样填：
 
 1. 项目路径：`/www/wwwroot/qqbot`
 2. 启动方式 / 启动文件：`app.py`
-3. 端口：`8888`
+3. 端口：`8080`（对外用 10002 反代到本机 8080）
 4. 在「模块」里安装 `requirements.txt`
 5. 启动项目
 
@@ -126,7 +124,7 @@ gunicorn -c gunicorn.conf.py app.main:app
 
 1. 添加站点，域名解析到这台机器
 2. 申请 SSL（完整证书链）
-3. 反向代理目标：`http://127.0.0.1:8888`；若开放平台走 8080，把站点/反代监听设为 8080
+3. 反向代理目标：`http://127.0.0.1:8080`；站点/反代监听设为 `10002`
 4. 在 Nginx 配置里补上上面三个 `X-Signature-*` / `X-Bot-Appid` 请求头，否则验签会失败
 
 开放平台回调填：
