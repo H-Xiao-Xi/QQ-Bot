@@ -23,6 +23,25 @@ def test_group_at_message_strips_mention():
     assert "/ping" not in help_reply.text
 
 
+def test_group_at_plain_nickname_prefix(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.checkin.CHECKIN_PATH", tmp_path / "checkins.json")
+    message = parse_incoming(
+        "GROUP_AT_MESSAGE_CREATE",
+        {
+            "id": "msg-plain-at",
+            "content": "@RELAY 签到",
+            "group_openid": "group-1",
+            "author": {"member_openid": "user-plain"},
+        },
+        "evt-plain-at",
+    )
+    assert message is not None
+    assert message.content == "签到"
+    reply = reply_for_message(message)
+    assert reply is not None
+    assert reply.text.startswith("签到成功")
+
+
 def test_parse_incoming_reads_avatar():
     message = parse_incoming(
         "GROUP_AT_MESSAGE_CREATE",

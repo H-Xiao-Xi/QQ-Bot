@@ -385,8 +385,9 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     payload = parse_body(raw)
     op = opcode(payload)
     logger.info(
-        "webhook op=%s ua=%s has_sig=%s appid=%s",
+        "webhook op=%s t=%s ua=%s has_sig=%s appid=%s",
         op,
+        payload.get("t"),
         header(request, "User-Agent"),
         bool(header(request, "X-Signature-Ed25519")),
         header(request, "X-Bot-Appid"),
@@ -420,12 +421,17 @@ for _webhook_path in _webhook_paths():
 
 
 async def run_dispatch(payload: dict) -> None:
-    client = api_client
-    if client is None:
+    try:
+        client = api_client
+        if client is None:
+            store.bump("errors")
+            store.remember("DISPATCH", "API 客户端未就绪", ok=False)
+            return
+        await dispatch_event(client, payload)
+    except Exception as exc:
+        logger.exception("dispatch failed")
         store.bump("errors")
-        store.remember("DISPATCH", "API 客户端未就绪", ok=False)
-        return
-    await dispatch_event(client, payload)
+        store.remember("DISPATCH", f"处理失败：{exc}"[:180], ok=False)
 
 
 async def replace_api_client() -> None:

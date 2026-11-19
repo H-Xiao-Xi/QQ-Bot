@@ -11,6 +11,51 @@ from app.config import Settings
 logger = logging.getLogger(__name__)
 
 
+IP_WHITELIST_HINT = "请把服务器公网 IP 加进开放平台 IP 白名单"
+
+
+def openapi_failure(status_code: int, data: Any) -> str:
+    body = data if isinstance(data, dict) else {}
+    if isinstance(body, dict) and (body.get("id") or body.get("access_token")):
+        return ""
+    code = None
+    message = ""
+    if isinstance(body, dict):
+        code = body.get("code", body.get("errcode", body.get("err_code")))
+        message = str(body.get("message") or body.get("msg") or "").strip()
+    http_fail = status_code >= 400
+    biz_fail = code not in (None, 0, "0", "")
+    if not http_fail and not biz_fail:
+        return ""
+    if code not in (None, ""):
+        detail = f"{code} {message}".strip()
+    else:
+        detail = message or (str(data)[:180] if data else f"HTTP {status_code}")
+    if str(code) == "11298" or "白名单" in message:
+        if IP_WHITELIST_HINT not in detail:
+            detail = f"{detail}；{IP_WHITELIST_HINT}"
+    return detail or f"HTTP {status_code}"
+
+
+def message_body(
+    *,
+    msg_type: int,
+    msg_id: str,
+    msg_seq: int,
+    event_id: str = "",
+    content: str | None = None,
+    markdown: str | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {"msg_type": msg_type, "msg_id": msg_id, "msg_seq": msg_seq}
+    if content is not None:
+        body["content"] = content
+    if markdown is not None:
+        body["markdown"] = {"content": markdown}
+    if event_id:
+        body["event_id"] = event_id
+    return body
+
+
 class QQBotAPI:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -55,40 +100,52 @@ class QQBotAPI:
     async def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self._settings.qq_bot_api_base.rstrip('/')}{path}"
         response = await self._client.post(url, headers=await self._headers(), json=payload)
-        data = response.json() if response.content else {}
-        if response.status_code >= 400:
-            logger.error("OpenAPI %s failed: %s %s", path, response.status_code, data)
-            raise RuntimeError(f"OpenAPI {path} failed: {response.status_code} {data}")
+        try:
+            data = response.json() if response.content else {}
+        except ValueError:
+            data = {"message": (response.text or "")[:200]}
+        error = openapi_failure(response.status_code, data)
+        if error:
+            logger.error("OpenAPI %s failed: %s", path, error)
+            raise RuntimeError(error)
         return data
 
-    async def send_group_text(self, group_openid: str, content: str, msg_id: str, msg_seq: int = 1) -> dict[str, Any]:
+    async def send_group_text(
+        self, group_openid: str, content: str, msg_id: str, msg_seq: int = 1, event_id: str = ""
+    ) -> dict[str, Any]:
         return await self._post(
             f"/v2/groups/{group_openid}/messages",
-            {"content": content, "msg_type": 0, "msg_id": msg_id, "msg_seq": msg_seq},
+            message_body(msg_type=0, msg_id=msg_id, msg_seq=msg_seq, event_id=event_id, content=content),
         )
 
-    async def send_c2c_text(self, user_openid: str, content: str, msg_id: str, msg_seq: int = 1) -> dict[str, Any]:
+    async def send_c2c_text(
+        self, user_openid: str, content: str, msg_id: str, msg_seq: int = 1, event_id: str = ""
+    ) -> dict[str, Any]:
         return await self._post(
             f"/v2/users/{user_openid}/messages",
-            {"content": content, "msg_type": 0, "msg_id": msg_id, "msg_seq": msg_seq},
+            message_body(msg_type=0, msg_id=msg_id, msg_seq=msg_seq, event_id=event_id, content=content),
         )
 
-    async def send_channel_text(self, channel_id: str, content: str, msg_id: str) -> dict[str, Any]:
-        return await self._post(
-            f"/channels/{channel_id}/messages",
-            {"content": content, "msg_id": msg_id},
-        )
+    async def send_channel_text(self, channel_id: str, content: str, msg_id: str, event_id: str = "") -> dict[str, Any]:
+        body: dict[str, Any] = {"content": content, "msg_id": msg_id}
+        if event_id:
+            body["event_id"] = event_id
+        return await self._post(f"/channels/{channel_id}/messages", body)
 
-    async def send_group_markdown(self, group_openid: str, content: str, msg_id: str, msg_seq: int = 1) -> dict[str, Any]:
+    async def send_group_markdown(
+        self, group_openid: str, content: str, msg_id: str, msg_seq: int = 1, event_id: str = ""
+    ) -> dict[str, Any]:
         return await self._post(
             f"/v2/groups/{group_openid}/messages",
-            {"msg_type": 2, "markdown": {"content": content}, "msg_id": msg_id, "msg_seq": msg_seq},
+            message_body(msg_type=2, msg_id=msg_id, msg_seq=msg_seq, event_id=event_id, markdown=content),
         )
 
-    async def send_c2c_markdown(self, user_openid: str, content: str, msg_id: str, msg_seq: int = 1) -> dict[str, Any]:
+    async def send_c2c_markdown(
+        self, user_openid: str, content: str, msg_id: str, msg_seq: int = 1, event_id: str = ""
+    ) -> dict[str, Any]:
         return await self._post(
             f"/v2/users/{user_openid}/messages",
-            {"msg_type": 2, "markdown": {"content": content}, "msg_id": msg_id, "msg_seq": msg_seq},
+            message_body(msg_type=2, msg_id=msg_id, msg_seq=msg_seq, event_id=event_id, markdown=content),
         )
 
 

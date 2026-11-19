@@ -133,7 +133,9 @@ def as_card(title: str, body: str = "") -> Reply:
 def normalize_content(content: str) -> str:
     cleaned = AT_PATTERN.sub("", content or "")
     cleaned = " ".join(cleaned.split()).strip()
-    return re.sub(r"(打劫|抢劫|rob)\s+@", r"\1@", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"(打劫|抢劫|rob)\s+@", r"\1@", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(?:@\S+\s+)+", "", cleaned)
+    return cleaned
 
 
 def mention_name(arg: str) -> str:
@@ -408,22 +410,32 @@ def reply_for_message(message: IncomingMessage) -> Reply | None:
 async def send_reply(api: QQBotAPI, message: IncomingMessage, reply: Reply, msg_seq: int = 1) -> None:
     text = reply.text[:1800]
     markdown = (reply.markdown or "")[:1800]
+    text_seq = msg_seq
     if message.scene in {"group", "c2c"} and markdown:
         try:
             if message.scene == "group":
-                await api.send_group_markdown(message.target_id, markdown, message.msg_id, msg_seq=msg_seq)
+                await api.send_group_markdown(
+                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq, event_id=message.event_id
+                )
             else:
-                await api.send_c2c_markdown(message.target_id, markdown, message.msg_id, msg_seq=msg_seq)
+                await api.send_c2c_markdown(
+                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq, event_id=message.event_id
+                )
             return
         except Exception:
             logger.warning("markdown card failed, fallback to text", exc_info=True)
+            text_seq = msg_seq + 1
     if message.scene == "group":
-        await api.send_group_text(message.target_id, text, message.msg_id, msg_seq=msg_seq)
+        await api.send_group_text(
+            message.target_id, text, message.msg_id, msg_seq=text_seq, event_id=message.event_id
+        )
         return
     if message.scene == "c2c":
-        await api.send_c2c_text(message.target_id, text, message.msg_id, msg_seq=msg_seq)
+        await api.send_c2c_text(
+            message.target_id, text, message.msg_id, msg_seq=text_seq, event_id=message.event_id
+        )
         return
-    await api.send_channel_text(message.target_id, text, message.msg_id)
+    await api.send_channel_text(message.target_id, text, message.msg_id, event_id=message.event_id)
 
 
 async def notify_brick_jobs(api: QQBotAPI) -> None:
@@ -474,15 +486,23 @@ async def dispatch_event(api: QQBotAPI, payload: dict) -> None:
         store.remember(event, "缺少回复目标，已跳过", ok=False)
         return
 
-    reply = reply_for_message(message)
+    store.remember(event, f"收到 {message.scene}：{message.content[:60] or '(空内容)'}")
+    try:
+        reply = reply_for_message(message)
+    except Exception as exc:
+        logger.exception("reply_for_message failed %s", event)
+        store.bump("errors")
+        store.remember(event, f"处理失败：{exc}"[:180], ok=False)
+        return
     if not reply:
         store.bump("ignored")
+        store.remember(event, f"未识别指令：{message.content[:40] or '(空)'}")
         return
     try:
         await send_reply(api, message, reply)
         store.bump("replied")
         store.remember(event, f"{message.scene} 回复：{reply.text[:80]}")
-    except Exception:
+    except Exception as exc:
         logger.exception("failed to reply %s", event)
         store.bump("errors")
-        store.remember(event, "回复失败", ok=False)
+        store.remember(event, f"回复失败：{exc}"[:180], ok=False)
