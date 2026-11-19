@@ -1,4 +1,4 @@
-bind = "127.0.0.1:8080"
+bind = ["127.0.0.1:8080", "127.0.0.1:8443"]
 workers = 1
 worker_class = "uvicorn.workers.UvicornWorker"
 timeout = 30

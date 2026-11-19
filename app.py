@@ -24,7 +24,7 @@ if __name__ == "__main__":
     StandaloneApplication(
         app,
         {
-            "bind": f"{settings.host}:{settings.port}",
+            "bind": [f"{settings.host}:{port}" for port in settings.listen_ports],
             "workers": 1,
             "worker_class": "uvicorn.workers.UvicornWorker",
             "timeout": 30,

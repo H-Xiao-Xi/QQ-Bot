@@ -6,6 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT_DIR = Path(__file__).resolve().parent.parent
 ENV_PATH = ROOT_DIR / ".env"
 
+# QQ Open Platform webhook callbacks only accept these ports.
+QQ_WEBHOOK_PORTS = (80, 443, 8080, 8443)
+# 80/443 need root and TLS at the reverse proxy; the app binds these two.
+QQ_APP_PORTS = (8080, 8443)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -27,6 +32,15 @@ class Settings(BaseSettings):
     @property
     def configured(self) -> bool:
         return bool(self.qq_bot_app_id and self.qq_bot_app_secret)
+
+    @property
+    def listen_ports(self) -> list[int]:
+        ports: list[int] = []
+        preferred = self.port if self.port in QQ_APP_PORTS else QQ_APP_PORTS[0]
+        for port in (preferred, *QQ_APP_PORTS):
+            if port not in ports:
+                ports.append(port)
+        return ports
 
     @property
     def webhook_path(self) -> str:
