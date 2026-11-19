@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     @classmethod
     def strip_text(cls, value: object) -> object:
         if isinstance(value, str):
-            return value.strip()
+            return value.replace("\ufeff", "").replace("\r", "").strip()
         return value
 
     @property
@@ -63,6 +63,19 @@ class Settings(BaseSettings):
         if len(app_id) <= 6:
             return app_id or "(未配置)"
         return f"{app_id[:3]}****{app_id[-3:]}"
+
+    @property
+    def secret_len(self) -> int:
+        return len(self.qq_bot_app_secret)
+
+    @property
+    def secret_suffix(self) -> str:
+        secret = self.qq_bot_app_secret
+        if not secret:
+            return ""
+        if len(secret) <= 4:
+            return "*" * len(secret)
+        return f"****{secret[-4:]}"
 
 
 @lru_cache

@@ -57,6 +57,8 @@ https://qqbot.anzixi.cn/webhook
 3. 关闭 HTTP/3 / QUIC（`Alt-Svc` 会导致开放平台校验失败）
 4. 网页里保存的 AppSecret 和开放平台完全一致
 
+开放平台提示「签名校验不通过」、但回调已 200 时：到控制台核对 Secret 长度和末四位，点「检测密钥」。能换到 access_token 说明密钥本身对，再从同一机器人重新复制 AppSecret 保存后重试回调。
+
 参考配置：当前工作区 `/deploy/nginx-qqbot.conf`
 
 建议订阅：

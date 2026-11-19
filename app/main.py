@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
-from app.api_client import QQBotAPI
+from app.api_client import QQBotAPI, probe_access_token
 from app.auth import (
     authenticate,
     ensure_admin,
@@ -200,6 +200,8 @@ async def dashboard(request: Request) -> HTMLResponse:
             "configured": settings.configured,
             "app_id": settings.masked_app_id,
             "app_id_value": settings.qq_bot_app_id,
+            "secret_len": settings.secret_len,
+            "secret_suffix": settings.secret_suffix,
             "webhook_path": settings.webhook_path,
             "api_base": settings.qq_bot_api_base,
             "version": __version__,
@@ -296,6 +298,8 @@ async def status() -> dict:
         "configured": settings.configured,
         "app_id": settings.masked_app_id,
         "secret_configured": bool(settings.qq_bot_app_secret),
+        "secret_len": settings.secret_len,
+        "secret_suffix": settings.secret_suffix,
         "webhook_path": settings.webhook_path,
         "api_base": settings.qq_bot_api_base,
         "version": __version__,
@@ -344,6 +348,21 @@ async def save_credentials(body: CredentialIn) -> dict:
         "configured": settings.configured,
         "app_id": settings.masked_app_id,
         "secret_configured": bool(settings.qq_bot_app_secret),
+        "secret_len": settings.secret_len,
+        "secret_suffix": settings.secret_suffix,
+    }
+
+
+@app.post("/api/credentials/check")
+async def check_credentials() -> dict:
+    probe = await probe_access_token(settings)
+    return {
+        "ok": True,
+        "configured": settings.configured,
+        "app_id": settings.masked_app_id,
+        "secret_len": settings.secret_len,
+        "secret_suffix": settings.secret_suffix,
+        **probe,
     }
 
 
@@ -357,6 +376,7 @@ async def webhook_hint() -> dict:
         "message": "QQ 开放平台应使用 POST 调用此回调地址",
         "path": settings.webhook_path,
         "configured": settings.configured,
+        "version": __version__,
     }
 
 
@@ -365,10 +385,11 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     payload = parse_body(raw)
     op = opcode(payload)
     logger.info(
-        "webhook op=%s ua=%s has_sig=%s",
+        "webhook op=%s ua=%s has_sig=%s appid=%s",
         op,
         header(request, "User-Agent"),
         bool(header(request, "X-Signature-Ed25519")),
+        header(request, "X-Bot-Appid"),
     )
     if op == OP_URL_VALIDATION:
         response = handle_validation(settings.qq_bot_app_secret, payload)

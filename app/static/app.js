@@ -43,6 +43,8 @@ async function refresh() {
   set("stat-replied", data.stats.replied);
   set("stat-errors", data.stats.errors);
   set("uptime", data.uptime_seconds);
+  set("secret-len", data.secret_len || 0);
+  set("secret-suffix", data.secret_suffix || "未配置");
 
   const checkin = data.checkin || {};
   set("ck-day", checkin.day || "");
@@ -163,8 +165,31 @@ if (form) {
     document.getElementById("app-secret").value = "";
     document.getElementById("app-secret").placeholder = "已保存，留空则保持不变";
     msg.className = "hint ok";
-    msg.textContent = "已保存，Webhook 立即使用新密钥。";
+    msg.textContent = `已保存，Secret 长度 ${data.secret_len || 0}，末四位 ${data.secret_suffix || ""}。Webhook 立即使用新密钥。`;
     refresh();
+  });
+}
+
+const checkBtn = document.getElementById("cred-check");
+if (checkBtn) {
+  checkBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("cred-msg");
+    msg.className = "hint";
+    msg.textContent = "正在向开放平台检测密钥…";
+    const res = await fetch("/api/credentials/check", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      msg.className = "hint bad";
+      msg.textContent = data.detail || "检测失败";
+      return;
+    }
+    if (data.token_ok) {
+      msg.className = "hint ok";
+      msg.textContent = `密钥可用。AppID ${data.app_id}，Secret 长度 ${data.secret_len}，末四位 ${data.secret_suffix}。`;
+      return;
+    }
+    msg.className = "hint bad";
+    msg.textContent = `密钥检测失败：${data.token_error || "未知错误"}。若提示 IP 白名单，先把服务器公网 IP 加进管理端。`;
   });
 }
 

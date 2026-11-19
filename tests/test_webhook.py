@@ -18,6 +18,7 @@ def test_health_and_dashboard(authed_client):
     assert status.status_code == 200
     assert "today_count" in status.json()["checkin"]
     assert "robs" in status.json()["checkin"]
+    assert "secret_len" in status.json()
 
 
 def test_preview_probe_is_public(client):
@@ -45,6 +46,7 @@ def test_url_validation(client, monkeypatch):
     assert data["plain_token"] == "Arq0D5A61EgUu4OxUvOp"
     assert data["signature"] == validation_signature(secret, "1725442341", "Arq0D5A61EgUu4OxUvOp")
     assert list(data.keys()) == ["plain_token", "signature"]
+    assert response.headers.get("x-qqbot-protocol") == "url-validation"
 
 
 def test_url_validation_trailing_slash_and_string_op(client, monkeypatch):
@@ -58,6 +60,26 @@ def test_url_validation_trailing_slash_and_string_op(client, monkeypatch):
     )
     assert response.status_code == 200
     assert response.json()["plain_token"] == "Arq0D5A61EgUu4OxUvOp"
+
+
+def test_url_validation_numeric_event_ts(client, monkeypatch):
+    secret = "DG5g3B4j9X2KOErG"
+    monkeypatch.setattr("app.main.settings.qq_bot_app_id", "11111111")
+    monkeypatch.setattr("app.main.settings.qq_bot_app_secret", secret)
+    response = client.post(
+        "/webhook",
+        json={"op": 13, "d": {"plain_token": "Arq0D5A61EgUu4OxUvOp", "event_ts": 1725442341}},
+    )
+    assert response.status_code == 200
+    assert response.json()["signature"] == validation_signature(secret, "1725442341", "Arq0D5A61EgUu4OxUvOp")
+
+
+def test_webhook_hint_includes_version(client):
+    response = client.get("/webhook")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["path"] == "/webhook"
+    assert "version" in body
 
 def test_dispatch_ack_with_signature(client, monkeypatch):
     secret = "naOC0ocQE3shWLAfffVLB1rhYPG7"
@@ -132,3 +154,15 @@ def test_web_edit_checkin(authed_client, monkeypatch, tmp_path):
     profile = get_profile("user-aaaa", path)
     assert profile.bank == 12
     assert profile.points == 88
+
+
+def test_credentials_check(authed_client, monkeypatch):
+    async def fake_probe(settings):
+        return {"token_ok": True, "token_error": ""}
+
+    monkeypatch.setattr("app.main.probe_access_token", fake_probe)
+    response = authed_client.post("/api/credentials/check")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["token_ok"] is True
+    assert "secret_len" in body

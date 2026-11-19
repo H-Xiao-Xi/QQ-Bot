@@ -44,8 +44,10 @@
         </label>
         <div class="form-row">
           <button type="submit">保存并立即生效</button>
+          <button type="button" id="cred-check">检测密钥</button>
           <p id="cred-msg" class="hint">密钥写入服务器 <code>.env</code>，页面不会回显 Secret。</p>
         </div>
+        <p class="hint">当前 Secret 长度 <code id="secret-len">{{ secret_len }}</code>，末四位 <code id="secret-suffix">{{ secret_suffix or "未配置" }}</code>。开放平台返回「签名校验不通过」时，从同一机器人重新复制 AppSecret 保存后再保存回调。</p>
       </form>
     </section>
 

@@ -8,10 +8,11 @@ ED25519_SIGNATURE_SIZE = 64
 
 
 def seed_from_secret(secret: str) -> bytes:
-    seed = secret
+    # Go uses string byte length, then ed25519.GenerateKey(strings.NewReader(seed[:32])).
+    seed = secret.encode("utf-8")
     while len(seed) < ED25519_SEED_SIZE:
         seed = seed * 2
-    return seed[:ED25519_SEED_SIZE].encode("utf-8")
+    return seed[:ED25519_SEED_SIZE]
 
 
 def signing_key_from_secret(secret: str) -> SigningKey:

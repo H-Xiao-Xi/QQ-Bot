@@ -1,4 +1,4 @@
-from app.crypto import sign_hex, validation_signature, verify_callback_signature
+from app.crypto import seed_from_secret, sign_hex, validation_signature, verify_callback_signature
 
 
 OFFICIAL_SECRET = "DG5g3B4j9X2KOErG"
@@ -20,3 +20,12 @@ def test_callback_signature_roundtrip():
     signature = sign_hex("naOC0ocQE3shWLAfffVLB1rhYPG7", timestamp.encode() + body)
     assert verify_callback_signature("naOC0ocQE3shWLAfffVLB1rhYPG7", timestamp, body, signature)
     assert not verify_callback_signature("naOC0ocQE3shWLAfffVLB1rhYPG7", timestamp, body + b"x", signature)
+
+
+def test_seed_matches_go_byte_length():
+    seed16 = seed_from_secret(OFFICIAL_SECRET)
+    assert len(seed16) == 32
+    assert seed16 == (OFFICIAL_SECRET * 2).encode("utf-8")[:32]
+    secret32 = "a" * 32
+    seed32 = seed_from_secret(secret32)
+    assert seed32 == secret32.encode("utf-8")
