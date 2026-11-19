@@ -44,6 +44,20 @@ def test_url_validation(client, monkeypatch):
     data = response.json()
     assert data["plain_token"] == "Arq0D5A61EgUu4OxUvOp"
     assert data["signature"] == validation_signature(secret, "1725442341", "Arq0D5A61EgUu4OxUvOp")
+    assert list(data.keys()) == ["plain_token", "signature"]
+
+
+def test_url_validation_trailing_slash_and_string_op(client, monkeypatch):
+    secret = "DG5g3B4j9X2KOErG"
+    monkeypatch.setattr("app.main.settings.qq_bot_app_id", "11111111")
+    monkeypatch.setattr("app.main.settings.qq_bot_app_secret", secret)
+    response = client.post(
+        "/webhook/",
+        json={"op": "13", "d": {"plain_token": "Arq0D5A61EgUu4OxUvOp", "event_ts": "1725442341"}},
+        headers={"User-Agent": "QQBot-Callback", "X-Bot-Appid": "11111111"},
+    )
+    assert response.status_code == 200
+    assert response.json()["plain_token"] == "Arq0D5A61EgUu4OxUvOp"
 
 def test_dispatch_ack_with_signature(client, monkeypatch):
     secret = "naOC0ocQE3shWLAfffVLB1rhYPG7"

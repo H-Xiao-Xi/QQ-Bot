@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +29,13 @@ class Settings(BaseSettings):
     proxy_host: str = "0.0.0.0"
     proxy_port: int = 10002
     log_level: str = "INFO"
+
+    @field_validator("qq_bot_app_id", "qq_bot_app_secret", "qq_bot_webhook_path", mode="before")
+    @classmethod
+    def strip_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
     @property
     def configured(self) -> bool:

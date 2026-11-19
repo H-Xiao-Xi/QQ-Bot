@@ -24,10 +24,19 @@ from app.auth import (
 )
 from app.checkin import set_score, summarize_checkins
 from app.config import apply_credentials, get_settings
-from app.crypto import validation_signature, verify_callback_signature
 from app.handlers import dispatch_event, notify_brick_jobs
 from app.proxy import start_tcp_proxy
 from app.store import store
+from app.webhook import (
+    OP_DISPATCH,
+    OP_URL_VALIDATION,
+    ack_response,
+    handle_validation,
+    header,
+    opcode,
+    parse_body,
+    verify_dispatch,
+)
 
 settings = get_settings()
 logging.basicConfig(
@@ -39,10 +48,6 @@ logger = logging.getLogger("qqbot")
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 api_client: QQBotAPI | None = None
-
-OP_DISPATCH = 0
-OP_HTTP_ACK = 12
-OP_URL_VALIDATION = 13
 
 
 class CredentialIn(BaseModel):
@@ -116,7 +121,12 @@ async def lifespan(_: FastAPI):
         await api_client.aclose()
 
 
-app = FastAPI(title="QQ Official Bot", version=__version__, lifespan=lifespan)
+app = FastAPI(
+    title="QQ Official Bot",
+    version=__version__,
+    lifespan=lifespan,
+    redirect_slashes=False,
+)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
@@ -124,7 +134,8 @@ PUBLIC_PATHS = {"/login", "/api/login", "/health", "/logout", "/api/logout"}
 
 
 def _is_public_path(path: str) -> bool:
-    if path == settings.webhook_path:
+    webhook = settings.webhook_path.rstrip("/") or "/webhook"
+    if path.rstrip("/") == webhook:
         return True
     if path.startswith("/static/"):
         return True
@@ -336,7 +347,11 @@ async def save_credentials(body: CredentialIn) -> dict:
     }
 
 
-@app.get(settings.webhook_path)
+def _webhook_paths() -> list[str]:
+    path = settings.webhook_path.rstrip("/") or "/webhook"
+    return [path, f"{path}/"]
+
+
 async def webhook_hint() -> dict:
     return {
         "message": "QQ 开放平台应使用 POST 调用此回调地址",
@@ -345,53 +360,42 @@ async def webhook_hint() -> dict:
     }
 
 
-@app.post(settings.webhook_path)
 async def webhook(request: Request, background_tasks: BackgroundTasks):
     raw = await request.body()
-    try:
-        payload = json.loads(raw.decode("utf-8") or "{}")
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=400, detail="invalid json") from exc
-
-    op = payload.get("op")
+    payload = parse_body(raw)
+    op = opcode(payload)
+    logger.info(
+        "webhook op=%s ua=%s has_sig=%s",
+        op,
+        header(request, "User-Agent"),
+        bool(header(request, "X-Signature-Ed25519")),
+    )
     if op == OP_URL_VALIDATION:
-        return handle_validation(payload)
+        response = handle_validation(settings.qq_bot_app_secret, payload)
+        store.bump("validated")
+        store.remember("URL_VALIDATION", "回调地址校验成功")
+        return response
 
-    if not settings.configured:
-        raise HTTPException(status_code=503, detail="bot credentials are not configured")
-
-    signature = request.headers.get("X-Signature-Ed25519", "")
-    timestamp = request.headers.get("X-Signature-Timestamp", "")
-    if not verify_callback_signature(settings.qq_bot_app_secret, timestamp, raw, signature):
+    try:
+        verify_dispatch(settings.qq_bot_app_secret, request, raw)
+    except HTTPException:
         store.bump("errors")
         store.remember("SIGNATURE", "签名校验失败", ok=False)
-        raise HTTPException(status_code=401, detail="invalid signature")
+        raise
 
-    header_appid = request.headers.get("X-Bot-Appid", "")
-    if header_appid and header_appid != settings.qq_bot_app_id:
+    appid = header(request, "X-Bot-Appid")
+    if appid and appid != settings.qq_bot_app_id:
         raise HTTPException(status_code=401, detail="appid mismatch")
 
     store.bump("received")
     if op == OP_DISPATCH:
         background_tasks.add_task(run_dispatch, payload)
-        return JSONResponse({"op": OP_HTTP_ACK})
-
-    return JSONResponse({"op": OP_HTTP_ACK})
+    return ack_response()
 
 
-def handle_validation(payload: dict) -> JSONResponse:
-    if not settings.configured:
-        raise HTTPException(status_code=503, detail="bot credentials are not configured")
-    data = payload.get("d") or {}
-    plain_token = str(data.get("plain_token") or "")
-    event_ts = str(data.get("event_ts") or "")
-    if not plain_token or not event_ts:
-        raise HTTPException(status_code=400, detail="invalid validation payload")
-    signature = validation_signature(settings.qq_bot_app_secret, event_ts, plain_token)
-    store.bump("validated")
-    store.remember("URL_VALIDATION", "回调地址校验成功")
-    logger.info("webhook url validation succeeded")
-    return JSONResponse({"plain_token": plain_token, "signature": signature})
+for _webhook_path in _webhook_paths():
+    app.add_api_route(_webhook_path, webhook_hint, methods=["GET", "HEAD"], include_in_schema=False)
+    app.add_api_route(_webhook_path, webhook, methods=["POST"], include_in_schema=False)
 
 
 async def run_dispatch(payload: dict) -> None:

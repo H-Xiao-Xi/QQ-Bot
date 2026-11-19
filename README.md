@@ -39,10 +39,25 @@ python3 app.py
 把回调地址填成：
 
 ```text
-https://你的域名/webhook
+https://qqbot.anzixi.cn/webhook
 ```
 
-保存时平台会 POST 一个 `op=13` 校验包。服务用 AppSecret 计算 signature 并原样返回 `plain_token`，校验通过后即可收事件。
+保存时平台会 POST `op=13`。服务按官方 Ed25519 算法用 AppSecret 签名 `event_ts + plain_token`，原样返回：
+
+```json
+{"plain_token":"...","signature":"..."}
+```
+
+事件推送验 `X-Signature-Ed25519` / `X-Signature-Timestamp`，立刻回 `{"op":12}`。
+
+宝塔 Nginx 必须：
+
+1. HTTPS 完整证书链，端口只用 `80` / `443` / `8080` / `8443`
+2. 反代到 `http://127.0.0.1:8080`，透传 `X-Signature-Ed25519`、`X-Signature-Timestamp`、`X-Bot-Appid`
+3. 关闭 HTTP/3 / QUIC（`Alt-Svc` 会导致开放平台校验失败）
+4. 网页里保存的 AppSecret 和开放平台完全一致
+
+参考配置：当前工作区 `/deploy/nginx-qqbot.conf`
 
 建议订阅：
 
