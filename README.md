@@ -50,6 +50,7 @@ Nginx 反代到 `http://127.0.0.1:8080`，透传上述三个请求头，关闭 H
 4. `AT_MESSAGE_CREATE` 频道 @
 
 免 @ 需要群主把机器人消息范围设为获取群内全部消息。全量群消息只响应指令。调用 OpenAPI 前把服务器公网 IP 加进管理端白名单。
+被动回复只用事件里的消息 `id`（`msg_id`）。收发对照见 `.monkeycode/docs/qq-openapi-v2.md`。
 
 ## 默认指令
 

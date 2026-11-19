@@ -415,11 +415,11 @@ async def send_reply(api: QQBotAPI, message: IncomingMessage, reply: Reply, msg_
         try:
             if message.scene == "group":
                 await api.send_group_markdown(
-                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq, event_id=message.event_id
+                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq
                 )
             else:
                 await api.send_c2c_markdown(
-                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq, event_id=message.event_id
+                    message.target_id, markdown, message.msg_id, msg_seq=msg_seq
                 )
             return
         except Exception:
@@ -427,15 +427,15 @@ async def send_reply(api: QQBotAPI, message: IncomingMessage, reply: Reply, msg_
             text_seq = msg_seq + 1
     if message.scene == "group":
         await api.send_group_text(
-            message.target_id, text, message.msg_id, msg_seq=text_seq, event_id=message.event_id
+            message.target_id, text, message.msg_id, msg_seq=text_seq
         )
         return
     if message.scene == "c2c":
         await api.send_c2c_text(
-            message.target_id, text, message.msg_id, msg_seq=text_seq, event_id=message.event_id
+            message.target_id, text, message.msg_id, msg_seq=text_seq
         )
         return
-    await api.send_channel_text(message.target_id, text, message.msg_id, event_id=message.event_id)
+    await api.send_channel_text(message.target_id, text, message.msg_id)
 
 
 async def notify_brick_jobs(api: QQBotAPI) -> None:

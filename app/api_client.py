@@ -18,6 +18,8 @@ def openapi_failure(status_code: int, data: Any) -> str:
     body = data if isinstance(data, dict) else {}
     if isinstance(body, dict) and (body.get("id") or body.get("access_token")):
         return ""
+    if status_code in {201, 202}:
+        return ""
     code = None
     message = ""
     if isinstance(body, dict):
@@ -34,6 +36,10 @@ def openapi_failure(status_code: int, data: Any) -> str:
     if str(code) == "11298" or "白名单" in message:
         if IP_WHITELIST_HINT not in detail:
             detail = f"{detail}；{IP_WHITELIST_HINT}"
+    if isinstance(body, dict):
+        trace = str(body.get("trace_id") or "").strip()
+        if trace and trace not in detail:
+            detail = f"{detail} trace={trace}"
     return detail or f"HTTP {status_code}"
 
 
@@ -46,13 +52,15 @@ def message_body(
     content: str | None = None,
     markdown: str | None = None,
 ) -> dict[str, Any]:
-    body: dict[str, Any] = {"msg_type": msg_type, "msg_id": msg_id, "msg_seq": msg_seq}
+    body: dict[str, Any] = {"msg_type": msg_type, "msg_seq": msg_seq}
+    if msg_id:
+        body["msg_id"] = msg_id
+    elif event_id:
+        body["event_id"] = event_id
     if content is not None:
         body["content"] = content
     if markdown is not None:
         body["markdown"] = {"content": markdown}
-    if event_id:
-        body["event_id"] = event_id
     return body
 
 
@@ -127,8 +135,10 @@ class QQBotAPI:
         )
 
     async def send_channel_text(self, channel_id: str, content: str, msg_id: str, event_id: str = "") -> dict[str, Any]:
-        body: dict[str, Any] = {"content": content, "msg_id": msg_id}
-        if event_id:
+        body: dict[str, Any] = {"content": content}
+        if msg_id:
+            body["msg_id"] = msg_id
+        elif event_id:
             body["event_id"] = event_id
         return await self._post(f"/channels/{channel_id}/messages", body)
 
